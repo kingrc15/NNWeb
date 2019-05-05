@@ -3,8 +3,11 @@
 <meta charset="utf-8">
 <body>
 	<style>
+		body{
+			overflow: scroll;
+		}
 		.dropdown {
-			position: relative;
+			position: absolute;
 			display: inline-block;
 			border: solid;
 		}
@@ -21,14 +24,12 @@
 			display: block;
 		}
 	    .line {
-	        border-bottom: 1px solid green;
-	        position: fixed;
+	    	height: 0px;
+	        border-bottom: 0px solid green;
+	        position: absolute;
 	        z-index: -1;
 	        text-align: center;
-	        transform-origin: center center;
-	    }
-	    .line:hover{
-	    	display: ruby-text;
+	        transform-origin: center;
 	    }
 	    .dot {
 	    	width: 50px;
@@ -36,13 +37,13 @@
 	    	background-color: yellow;
 	    	border-radius: 100%;
 	    	display: inline-block;
-	    	position: fixed;
+	    	position: absolute;
 	    	text-align: center;
 	    	line-height: 50px;
 		    }
 	</style>
 	<button onclick="net.backprop()">Back Propagation</button>
-	<button onclick="net.loop(1000)">Loop</button>
+	<button onclick="loop(net, 1000)">Loop</button>
 
 	<div class="dropdown">
 		<span>Layer Type</span>
@@ -50,35 +51,37 @@
 			<p>Sigmoid</p>
 			<p>TanH</p>
 			<p>ReLU</p>
-			<p>Drop Out</p>
 		</div>
 	</div>
 
+	<div class="Evaluate", id="Cost">0</div>
+	<div class="Evaluate", id="Accuracy">0</div>
+
 	<script>
+		function loop(net, int){
+			var time = setInterval(() => net.backprop(), int);
+		}
+
 		class Net{
-			constructor(trainingInputs, trainingOutputs){
+			constructor(trainingInputs, trainingOutputs, testInputs, testOuputs){
 				this.buffer = 75;
 				this.ySpacing = 100;
-				this.xSpacing = 200;
+				this.xSpacing = 400;
 				this.trainingInputs = trainingInputs;
 				this.trainingOutputs = trainingOutputs;
-				this.layers = ['TanH','Sigmoid'];
+				this.testInputs = testInputs;
+				this.testOuputs = testOuputs;
+				this.layers = ['ReLU','TanH','Sigmoid'];
 				this.optMethod = ['SGD'];
 				this.batchSize = 2;
-				this.LR = 1;
-				this.sizes = [5,4,3];
+				this.LR = 0.5;
+				this.sizes = [5,4,4,3];
 				this.maxLayer =  Math.max.apply(null,this.sizes);
 				this.createLayers();
 			}
 
-			loop(int){
-				for (var x = 0; x < int; x++){
-					this.backprop();
-				}
-			}
-
-			feedforward(input, output){
-				var a = this.trainingInputs[0]
+			feedforward(input){
+				var a = input
 				document.getElementById("Layer0").act = a
 				for (var x = 1; x < this.layers.length + 1; x++){
 					var lay = document.getElementById("Layer" + x)
@@ -92,14 +95,14 @@
 			backprop(){
 				var d, idx, lay, preLay, prime, wUpdate, cost;
 				for (var x = 0; x < this.batchSize; x++){
-					idx = Math.floor(Math.random()*this.trainingInputs.length)
-					this.feedforward(this.trainingInputs[idx],this.trainingOutputs[idx])
+					idx = Math.floor(Math.random()*this.trainingInputs.length);
+					this.feedforward(this.trainingInputs[idx]);
 					for (var y = this.layers.length; y > 0; y--){
-						lay = document.getElementById("Layer" + y)
-						preLay = document.getElementById("Layer" + (y-1))
+						lay = document.getElementById("Layer" + y);
+						preLay = document.getElementById("Layer" + (y-1));
 						prime = window[this.layers[y-1]+"Prime"](lay.zs);
 						if (y == this.layers.length){
-							cost = costDerivative(lay.act, trainingOutputs[idx])
+							cost = costDerivative(lay.act, trainingOutputs[idx]);
 							d = prime.map(function(p, i) { return p * cost[i];});
 						} else{
 							d = prime.map(function(p, i) { return p * d[i];});
@@ -107,22 +110,23 @@
 						lay.gradUpdateB = lay.gradUpdateB.map(function(u, i){ return u + d[i]});
 						wUpdate = multiply(d,transpose(preLay.act));
 						for (var z = 0; z < wUpdate.length; z++){
-							lay.gradUpdateW[z] = lay.gradUpdateW[z].map(function(u, i){ return parseFloat(u) + parseFloat(wUpdate[z][i])});
+							lay.gradUpdateW[z] = lay.gradUpdateW[z].map(function(u, i){ 
+								return parseFloat(u) + parseFloat(wUpdate[z][i]);
+							});
 						}
-						d = transpose(multiply(transpose(d),lay.weights))[0][0]
+						d = transpose(multiply(transpose(d),lay.weights))[0][0];
 					}
 				}
 				for (var x = 1; x < this.layers.length + 1; x++){
-					lay = document.getElementById("Layer" + x)
-					if(x == 1){
-					}
+					lay = document.getElementById("Layer" + x);
 					window[this.optMethod](lay, this.batchSize, this.LR);
 				}
-				this.drawWeights()
+				this.drawWeights();
+				this.evaluate();
 			}
 
 			createLayers(){
-				var tmp, tmpX, tmpY, X, Y;
+				var tmp, tmpX, tmpY, X, Y, wTmp;
 				for (var x = 0; x < this.sizes.length; x++){
 					this.layer = document.createElement("div");
 					this.layer.id = "Layer" + x
@@ -147,19 +151,18 @@
 							this.node.innerHTML = this.node.bias.toFixed(2);
 							for (var z = 0; z < this.sizes[x-1]; z++){
 								tmp = document.getElementById("Node" + (x) + (z + 1));
-								tmpX = parseFloat(tmp.style.left.replace(/px/,"")) - 25;
-								tmpY = parseFloat(tmp.style.top.replace(/px/,"")) + 25;
-								X = parseFloat(this.node.style.left.replace(/px/,"")) - 25;
-								Y = parseFloat(this.node.style.top.replace(/px/,"")) + 25;
+								tmpX = parseFloat(tmp.style.left.replace(/px/,""));
+								tmpY = parseFloat(tmp.style.top.replace(/px/,""));
+								X = parseFloat(this.node.style.left.replace(/px/,""));
+								Y = parseFloat(this.node.style.top.replace(/px/,""));
 								this.node.weights.push(window[this.layers[x-1] + "Init"](this.sizes[x-1]));
 								this.node.weight = document.createElement("div");
 								this.node.weight.className = "line";
 								this.node.weight.id = "weight" + x + z + y;
 								this.node.weight.style.width = Math.sqrt(Math.pow(X - tmpX,2) + Math.pow(Y - tmpY,2)) + 'px';
 								this.node.weight.style.transform = "rotate(" + Math.atan((Y - tmpY)/(X - tmpX))*180/3.14159 + "deg)";
-								this.node.weight.style.top = (Y  + tmpY)/2 - 25 + 'px';
-								this.node.weight.style.left = (X + tmpX)/2 - Math.pow(Math.abs(Math.atan((Y - tmpY)/(X - tmpX))*180/3.14159),1.05) - Math.abs(Math.atan((Y - tmpY)/(X - tmpX))*180/3.14159) * 1 + 'px';
-								this.node.weight.innerHTML = this.node.weights[z].toFixed(2)
+								this.node.weight.style.left = (X + tmpX) / 2 - 25 + 'px';
+								this.node.weight.style.top = (Y  + tmpY)/2 + 25 + 'px';
 								document.body.appendChild(this.node.weight);
 							}
 							this.layer.gradUpdateW.push(new Array(this.node.weights.length).fill(0))
@@ -170,25 +173,32 @@
 					if(x != 0){
 						this.layer.gradUpdateB = new Array(this.layer.biases.length).fill(0)
 						this.layer.gradUpdateB = this.layer.gradUpdateB.fill(0)
+						for (var y = 0; y < this.sizes[x]; y++){
+							for (var z = 0; z < this.sizes[x-1]; z++){
+								wTmp = document.getElementById("weight" + x + z + y);
+								wTmp.style.left = parseFloat(wTmp.style.left.replace(/px/,"")) - Math.abs(wTmp.getBoundingClientRect().x - (this.xSpacing * (x-1) + this.buffer)) + 25 + 'px'
+							}
+						}
 					}
 					document.body.appendChild(this.layer);
 				}
 				this.drawWeights();
+				document.body.style.overflow = "auto";
 			}
+
 			drawWeights(){
 				var lay, wTmp,nTmp;
 				for (var x = 0; x < this.sizes.length; x++){
-					lay = document.getElementById("Layer" + x)
+					lay = document.getElementById("Layer" + x);
 					for (var y = 0; y < this.sizes[x]; y++){
 						for (var z = 0; z < this.sizes[x-1]; z++){
-							wTmp = document.getElementById("weight" + x + z + y)
+							wTmp = document.getElementById("weight" + x + z + y);
 							if (lay.weights[y][z] < 0){
 								wTmp.style.borderBottom = "solid red";
 							} else {
 								wTmp.style.borderBottom = "solid green";
 							}
 							wTmp.style.opacity = Math.abs(lay.weights[y][z]*4);
-							wTmp.style.innerHTML = "";
 							wTmp.innerHTML = lay.weights[y][z].toFixed(2);
 						}
 						if (x != 0){
@@ -197,6 +207,50 @@
 						}
 					}
 				}
+			}
+
+			evaluate(){
+				document.getElementById("Cost").innerHTML = this.cost();
+				document.getElementById("Accuracy").innerHTML = this.accuracy();
+			}
+
+			cost(){
+				var result, lay;
+				var cost = 0;
+				for (var x = 0; x < this.testInputs.length; x++){
+					lay = document.getElementById("Layer" + (this.sizes.length-1));
+					for (var y = 0; y < lay.act.length; y++){
+						cost += Math.abs(this.testOuputs[x][y] - lay.act[y]);
+					}
+				}
+				return cost;
+			}
+
+			accuracy(){
+				var maxA, maxAI, maxY, maxYI, lay;
+				var acc = 0, tot = 0;
+				for (var x = 0; x < this.testInputs.length; x++){
+					maxA = 0;
+					maxAI = 0;
+					maxY = 0;
+					maxYI = 0;
+					lay = document.getElementById("Layer" + (this.sizes.length-1));
+					for (var y = 0; y < lay.act.length; y++){
+						if (this.testOuputs[x][y] > maxA){
+							maxA = this.testOuputs[x][y];
+							maxAI = y;
+						}
+						if (lay.act[y] > maxY){
+							maxY = lay.act[y];
+							maxYI = y;
+						}
+						if (maxAI == maxYI){
+							acc++;
+						}
+						tot++;
+					}
+				}
+				return acc/tot;
 			}
 		}
 
@@ -242,6 +296,24 @@
 
 		function TanHInit(preLaySize) {
 			return (Math.random()-0.5)/Math.sqrt(1/preLaySize)
+		}
+
+		function ReLU(z){
+			return z.map(function (idx) { return idx * (idx >= 0);});
+		}
+
+		function ReLUPrime(z){
+			return z.map(function (idx) { 
+				if (idx >= 0){
+					return 1;
+				} else {
+					return 0;
+				}
+			});
+		}
+
+		function ReLUInit(preLaySize) {
+			return Math.random()/Math.sqrt(2/preLaySize)
 		}
 
 		//Cost Functions
@@ -295,7 +367,7 @@
 		trainingInputs = [[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0]];
 		trainingOutputs = [[1,0,0],[0,1,0],[0,0,1]];
 
-		net = new Net(trainingInputs,trainingInputs)
+		net = new Net(trainingInputs,trainingInputs,trainingInputs,trainingInputs)
 	</script>
 </body>
 </html>
