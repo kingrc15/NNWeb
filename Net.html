@@ -5,11 +5,14 @@
 	<style>
 		body{
 			overflow: scroll;
+			transform: scale(1.0);
+			transform-origin: 0 0;
 		}
 		.dropdown {
 			position: absolute;
-			display: inline-block;
-			border: solid;
+			display: none;
+			width: 100px;
+			text-align: center;
 		}
 		.dropdown-content {
 			display: none;
@@ -40,44 +43,86 @@
 	    	position: absolute;
 	    	text-align: center;
 	    	line-height: 50px;
-		    }
-	</style>
-	<button onclick="net.backprop()">Back Propagation</button>
-	<button onclick="loop(net, 1000)">Loop</button>
+		}
+		.Cost {
+			border: 1px black;
+			width: 150px;
+			top: 0px;
+			left: 0px;
+		}
+		.Accuracy {
+			border: 1px black;
+			width: 150px;
+			top: 0px;
+			left: 50px;
+		}
+		.NumLayers {
+			top: 50px;
+		}
+		.CreateNet {
 
-	<div class="dropdown">
-		<span>Layer Type</span>
-		<div class="dropdown-content">
-			<p>Sigmoid</p>
-			<p>TanH</p>
-			<p>ReLU</p>
-		</div>
+		}
+	</style>
+
+	<div class="dropdown", id="layerOptions">
+		<select id="dd">
+			<option>Select Layer Type</option>
+			<option>Sigmoid</option>
+			<option>TanH</option>
+			<option>ReLU</option>
+		</select>
 	</div>
 
-	<div class="Evaluate", id="Cost">0</div>
-	<div class="Evaluate", id="Accuracy">0</div>
+	<div class="Cost", id="Cost">Cost = 0</div>
+	<div class="Accuracy", id="Accuracy">Accuracy = 0</div>
+	<input class="NumLayers" type="Number" id="NumLayers" name="NumLayers">
+	<button class="SetUp", id="SetUp" onclick="SetUp()">Enter</button>
+	<button class="Net", id="CreateNet" onclick="net.validateFields()" disabled>Create Net</button>
+	<button class="SingleIter" id="backprop" onclick="net.backprop()" disabled>Back Propagation</button>
+	<button class="Loop" id="loop" onclick="loop(net, 1000)" disabled>Loop</button>
 
 	<script>
 		function loop(net, int){
 			var time = setInterval(() => net.backprop(), int);
 		}
 
+		function SetUp(){
+			net = new Net(trainingInputs,trainingInputs,trainingInputs,trainingInputs)
+		}
+
 		class Net{
 			constructor(trainingInputs, trainingOutputs, testInputs, testOuputs){
-				this.buffer = 75;
+				this.leftBuffer = 75;
+				this.topBuffer = 200;
 				this.ySpacing = 100;
-				this.xSpacing = 400;
+				this.xSpacing = 500;
 				this.trainingInputs = trainingInputs;
 				this.trainingOutputs = trainingOutputs;
 				this.testInputs = testInputs;
 				this.testOuputs = testOuputs;
-				this.layers = ['ReLU','TanH','Sigmoid'];
-				this.optMethod = ['SGD'];
-				this.batchSize = 2;
-				this.LR = 0.5;
-				this.sizes = [5,4,4,3];
-				this.maxLayer =  Math.max.apply(null,this.sizes);
-				this.createLayers();
+				this.numLayers = document.getElementById("NumLayers").value;
+				var layOpt, numNodes;
+				this.layers = [];
+				this.sizes = [];
+				for (var x = 0; x < this.numLayers; x++){
+					numNodes = document.createElement("input")
+					numNodes.type = "Number";
+					numNodes.style.position = "absolute";
+					numNodes.style.left = x*this.xSpacing + this.leftBuffer - 40 + 'px';
+					numNodes.style.top = this.topBuffer - 100 + "px";
+					numNodes.id = "numNodes" + x;
+					document.body.appendChild(numNodes);
+					if (x != 0){
+						layOpt = document.getElementById("layerOptions").cloneNode(true);
+						layOpt.style.display = "inline";
+						layOpt.style.left = x*this.xSpacing + this.leftBuffer-27 + 'px';
+						layOpt.style.top = this.topBuffer - 65 + 'px';
+						layOpt.id = "layOpt" + x;
+						document.body.appendChild(layOpt);
+					}
+				}
+				document.getElementById("SetUp").disabled = true;
+				document.getElementById("CreateNet").disabled = false;
 			}
 
 			feedforward(input){
@@ -125,7 +170,35 @@
 				this.evaluate();
 			}
 
+			validateFields(){
+				var valid = true;
+				for (var x = 0; x < this.numLayers; x++){
+					if(document.getElementById("numNodes" + x).value == ''){ valid = false }
+					if (x != 0){
+						if(document.getElementById("layOpt" + x).value == 'Select Layer Type'){ valid = false }
+					}
+				}
+				if (valid){
+					document.getElementById("CreateNet").disabled = true;
+					document.getElementById("backprop").disabled = false;
+					document.getElementById("loop").disabled = false;
+					net.createLayers();
+				}
+			}
+
 			createLayers(){
+				for (var x = 0; x < this.numLayers; x++){
+					this.sizes.push(document.getElementById("numNodes" + x).value);
+					if (x != 0){
+						var y = document.getElementById("layOpt" + x);
+						y = y.childNodes
+						this.layers.push(y[1].value);
+					}
+				}
+				this.optMethod = ['SGD'];
+				this.batchSize = 2;
+				this.LR = 10;
+				this.maxLayer =  Math.max.apply(null,this.sizes);
 				var tmp, tmpX, tmpY, X, Y, wTmp;
 				for (var x = 0; x < this.sizes.length; x++){
 					this.layer = document.createElement("div");
@@ -141,8 +214,8 @@
 					for (var y = 0; y < this.sizes[x]; y++){
 						this.node = document.createElement("div");
 						this.node.className = "dot";
-						this.node.style.top = y * this.ySpacing + (this.maxLayer - this.sizes[x]) * this.ySpacing / 2 + this.buffer + 'px';
-						this.node.style.left = this.xSpacing * x + this.buffer + 'px';
+						this.node.style.top = y * this.ySpacing + (this.maxLayer - this.sizes[x]) * this.ySpacing / 2 + this.topBuffer + 'px';
+						this.node.style.left = this.xSpacing * x + this.leftBuffer + 'px';
 						this.node.weights = [];
 						this.node.id = "Node" + (x + 1) + (y + 1);
 						if(x != 0){
@@ -176,14 +249,19 @@
 						for (var y = 0; y < this.sizes[x]; y++){
 							for (var z = 0; z < this.sizes[x-1]; z++){
 								wTmp = document.getElementById("weight" + x + z + y);
-								wTmp.style.left = parseFloat(wTmp.style.left.replace(/px/,"")) - Math.abs(wTmp.getBoundingClientRect().x - (this.xSpacing * (x-1) + this.buffer)) + 25 + 'px'
+								wTmp.style.left = parseFloat(wTmp.style.left.replace(/px/,"")) - Math.abs(wTmp.getBoundingClientRect().x - (this.xSpacing * (x-1) + this.leftBuffer)) + 25 + 'px'
 							}
 						}
 					}
 					document.body.appendChild(this.layer);
 				}
 				this.drawWeights();
-				document.body.style.overflow = "auto";
+				for (var x = 0; x < this.numLayers; x++){
+					document.getElementById("numNodes" + x).disabled = true;
+					if (x != 0){
+						document.getElementById("dd").disabled = true;
+					}
+				}
 			}
 
 			drawWeights(){
@@ -210,8 +288,8 @@
 			}
 
 			evaluate(){
-				document.getElementById("Cost").innerHTML = this.cost();
-				document.getElementById("Accuracy").innerHTML = this.accuracy();
+				document.getElementById("Cost").innerHTML = "Cost = " + this.cost();
+				document.getElementById("Accuracy").innerHTML = "Accuracy = " + this.accuracy();
 			}
 
 			cost(){
@@ -303,6 +381,7 @@
 		}
 
 		function ReLUPrime(z){
+			console.log(z.map(function (idx){if (idx >= 0){return 1;} else {return 0;}}))
 			return z.map(function (idx) { 
 				if (idx >= 0){
 					return 1;
@@ -366,8 +445,6 @@
 
 		trainingInputs = [[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0]];
 		trainingOutputs = [[1,0,0],[0,1,0],[0,0,1]];
-
-		net = new Net(trainingInputs,trainingInputs,trainingInputs,trainingInputs)
 	</script>
 </body>
 </html>
